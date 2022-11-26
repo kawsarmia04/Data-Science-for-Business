@@ -1,0 +1,224 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+# Introduction
+
+In this study, I've chosen to examine the data on fraudulent online payment transactions. Visit <https://www.kaggle.com/datasets/jainilcoder/online-payment-fraud-detection> to access the information. Building a model that can identify fraudulent transactions is the aim of this project. Utilizing the ROC curve, also known as the Receiver Operating Characteristic, I will be using the machine learning model Logistic Regression to compare their accuracy. We start by importing the required libraries and loading the dataset's data.
+
+# Importing the libraries
+```{r}
+library(dplyr)
+library(caret) 
+library(caTools)
+library(data.table)
+library(ggplot2)    
+library(corrplot)
+library(pROC)
+```
+
+# Importing the dataset
+
+```{r}
+dataset <- setDT(read.csv("D:/1st Sem-LTU 2022/online_fraud.csv"))
+```
+
+# Data Exploration
+
+```{r}
+head(dataset)
+```
+```{r}
+summary (dataset)
+```
+
+
+```{r}
+table(dataset$isFraud)
+```
+
+```{r}
+names(dataset)
+```
+```{r}
+summary(dataset$amount)
+```
+
+```{r}
+hist(dataset$amount)
+```
+```{r}
+hist(dataset$amount[dataset$amount < 100])
+```
+```{r}
+colSums(is.na(dataset))
+```
+```{r}
+head(dataset, 10)
+```
+
+# Data Visualization
+
+```{r}
+dataset %>%
+  ggplot(aes(x = step, fill = factor(isFraud))) + 
+  geom_histogram(bins = 100) + 
+  labs(x = "Time elapsed since first transcation (hours)", y = "no. of transactions", title = "Distribution of transactions across time") +
+  facet_grid(isFraud ~ ., scales = 'free_y') + theme()
+```
+
+
+```{r}
+dataset %>% ggplot(aes(x=type, fill = type)) +
+  geom_bar() + labs(title = "Transactions as per Type",  x = 'Transaction Type' , y = 'No of transactions' ) +  theme_classic()
+```
+
+```{r}
+fraud_trans <- dataset %>% group_by(type) %>% summarise(fraud_transactions = sum(isFraud))
+
+ggplot(fraud_trans, aes(x = type,  y = fraud_transactions)) +
+  geom_col(aes(fill = 'type'), show.legend = FALSE) +
+  labs(title = 'Fraud transactions as Per type', x = 'Transcation type', y = 'No of Fraud Transactions') +
+  geom_text(aes(label = fraud_transactions), size = 4, hjust =.5) +
+  theme_classic()
+```
+
+```{r}
+ggplot(dataset[dataset$isFraud==1, ], aes(x = amount,  fill = amount)) +
+  geom_histogram(bins = 40, aes(fill = 'amount')) +
+  labs(title = 'Fraud transaction Amount distribution', y = 'No. of Fraud transacts', x = 'Amount in BDT')
+```
+
+```{r}
+ggplot(dataset[dataset$isFraud==0,], aes(x = type, y = log(amount), fill = type)) +
+  geom_boxplot(show.legend = FALSE) +
+  labs(title= 'amount- boxplot' , x = 'types') +
+  theme_classic()
+```
+
+
+```{r}
+head(dataset, 5)
+```
+
+```{r}
+library(gridExtra)
+```
+
+```{r}
+origBal <- ggplot(dataset, aes(x = factor(isFraud), y = log1p(oldbalanceOrg), fill = factor(isFraud))) +
+            geom_boxplot(show.legend = FALSE) +
+            labs(title= 'Old balance in Origin Accounts', x = 'isFraud') +
+            theme_classic()
+
+destBal <- ggplot(dataset, aes(x = factor(isFraud), y = log1p(oldbalanceDest), fill = factor(isFraud))) +
+            geom_boxplot(show.legend = FALSE) +
+            labs(title= 'Old balance in Destination Accounts' , x = 'isFraud') +
+            theme_classic()
+
+grid.arrange(origBal, destBal, nrow = 1)
+```
+
+# Data Preprocessing
+
+
+```{r}
+df <- dataset %>% select(-c(nameOrig, nameDest, isFlaggedFraud))
+```
+
+```{r}
+df
+```
+```{r}
+df$amount <- scale(dataset$amount)
+df_new <- df[, -c(1)]
+head(df_new)
+```
+
+
+```{r}
+df_new$isFraud <- as.factor(df_new$isFraud)
+levels(df_new$isFraud) <- c("0", "1")
+```
+
+#Data Modeling
+
+```{r}
+set.seed(101)
+split <- sample.split(df_new$isFraud, SplitRatio = 0.8)
+train_data <- subset(df_new, split == TRUE)
+test_data <- subset(df_new, split == FALSE)
+dim(train_data)
+```
+
+```{r}
+dim(test_data)
+```
+```{r}
+library(ROSE)
+```
+
+```{r}
+set.seed(90)
+up_train_data <- upSample(x = train_data[, -7],
+                         y = train_data$isFraud)
+table(up_train_data$isFraud)
+```
+
+
+# Logistic Regression
+
+```{r}
+logistic_model = glm(isFraud~., train_data, family = binomial())
+
+```
+
+```{r}
+summary(logistic_model)
+```
+
+```{r}
+plot(logistic_model)
+```
+
+
+
+
+```{r}
+logit = glm (isFraud ~., family = binomial(), data = df_new)
+logit.prob = predict(logit, type = 'response')
+logit.class = ifelse (logit.prob > 0.5, '1', '0') %>% as.factor()
+c_m = table (df_new$isFraud, logit.class)
+c_m
+
+```
+
+# Ploting ROC-AUC Curve
+
+```{r}
+library(pROC)
+```
+```{r}
+logistic_predictions <- predict(logistic_model, test_data, type='response')
+roc.curve(test_data$isFraud, logistic_predictions, plotit = TRUE, col = "blue")
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
